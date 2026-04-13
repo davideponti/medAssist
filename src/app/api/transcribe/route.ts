@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
     if (userError || !user) return NextResponse.json({ error: 'Sessione non valida' }, { status: 401 })
     const ip = getClientIp(request)
-    const rl = rateLimit(`transcribe:${user.id}:${ip}`, 20, 60_000)
+    const rl = await rateLimit(`transcribe:${user.id}:${ip}`, 20, 60_000)
     if (!rl.ok) {
       return NextResponse.json(
         { error: 'Troppe richieste di trascrizione. Riprova tra poco.' },

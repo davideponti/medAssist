@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Origine richiesta non consentita.' }, { status: 403 })
     }
     const ip = getClientIp(request)
-    const rl = rateLimit(`public-contact:${ip}`, 8, 60_000)
+    const rl = await rateLimit(`public-contact:${ip}`, 8, 60_000)
     if (!rl.ok) {
       return NextResponse.json(
         { error: 'Troppe richieste. Riprova tra poco.' },

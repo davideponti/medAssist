@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 export async function PATCH(
   request: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = getSessionTokenFromRequest(request)
@@ -14,7 +14,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
 
-    const { id } = context.params
+    const { id } = await context.params
     if (!id) {
       return NextResponse.json({ error: 'Mancante id' }, { status: 400 })
     }
