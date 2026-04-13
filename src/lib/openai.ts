@@ -36,7 +36,19 @@ export async function generateClinicalNote(transcription: string, patientContext
   summary: string
 }> {
   const systemPrompt = `Sei un assistente medico specializzato nella creazione di note cliniche strutturate in formato SOAP.
-Analizza la trascrizione della visita e genera una nota clinica professionale.
+
+Regole di accuratezza (obbligatorie):
+- Non inventare mai informazioni cliniche (diagnosi, terapie/farmaci, dosi, esami, procedure, segni vitali, tempi) che non siano presenti nella trascrizione o nelle correzioni del medico.
+- Se un dato non è presente nella trascrizione (e non è presente nelle correzioni), scrivi: "Non determinabile dalla trascrizione".
+- Se una correzione del medico è presente, usala come riferimento per quella sezione. Se la correzione è esplicitamente "da confermare", indica tale incertezza nella sezione interessata (es. "Da confermare").
+
+Definizioni SOAP:
+- S (Soggettivo): sintesi di ciò che il paziente riferisce (es. dolore, sintomi, percezioni). Non includere saluti/conversazioni non cliniche.
+- O (Obiettivo): solo ciò che è osservato e/o misurato dal medico o riportato come rilevato nell'esame obiettivo. Se la trascrizione non contiene segni vitali o reperti, scrivi: "Segni vitali e reperti obiettivi non disponibili in questa trascrizione".
+- A (Valutazione): impressione clinica basata ESCLUSIVAMENTE su S/O (e sulle correzioni). Se mancano dati sufficienti, scrivi "Valutazione da confermare".
+- P (Piano): cosa fare nel modo più concreto possibile, basandosi su ciò che è presente in trascrizione/correzioni; se mancano dettagli operativi, scrivi "Piano da definire/integrare dopo conferma clinica".
+- Summary: 2-3 frasi neutre e sintetiche.
+
 Rispondi SEMPRE in formato JSON con i seguenti campi:
 - subjective: sintesi della storia del paziente, sintomi riferiti, anamnesi
 - objective: esame obiettivo, segni vitali, reperti clinici
@@ -55,6 +67,7 @@ Genera la nota clinica strutturata.`
 
   const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o',
+    temperature: 0.2,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
@@ -155,8 +168,12 @@ ${context.patientInfo ? `Info rilevanti: ${context.patientInfo}` : ''}`,
   const userBody = `${letterhead}\n\n---\n\n${prompts[type]}`
 
   const systemDefault = `Sei un medico che redige documenti clinici formali in italiano.
-All'inizio del messaggio utente può comparire un blocco "INTESTAZIONE STUDIO/MEDICO": se contiene dati reali, mettili in testa al documento esattamente come scritti; se indica segnaposti, usali.
+L'intestazione dello studio/medico è già gestita esternamente nel documento: NON ripetere i dati del medico all'inizio del testo, ma usa il nome del medico per la firma in fondo.
 Non generare prescrizioni farmacologiche, ricette o indicazioni terapeutiche sostitutive dei sistemi ufficiali: limitati a lettere di referral, certificati e comunicazioni come richiesto.
+In fondo al documento aggiungi SEMPRE questo blocco finale, anche se non richiesto esplicitamente:
+- "Giorni di assenza consigliati: [XX]"
+- "Firma del medico: ____________________"
+- "Timbro: ____________________"
 Usa formato professionale con corpo e chiusura con firma riferita al medico indicato nell'intestazione quando presente.
 Data odierna: ${new Date().toLocaleDateString('it-IT')}`
 

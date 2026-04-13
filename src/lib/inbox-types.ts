@@ -3,6 +3,7 @@ export type PatientMessageRow = {
   doctor_id: string
   patient_name: string
   patient_email: string | null
+  patient_phone: string | null
   body: string
   ai_suggested_reply: string | null
   suggested_action: string | null

@@ -62,12 +62,6 @@ export default function HomePage() {
             >
               Accedi
             </Link>
-            <Link
-              href="/signup"
-              className="text-medical-700 font-semibold px-4 py-4 hover:underline"
-            >
-              Registrati
-            </Link>
           </div>
           <p className="text-gray-500 text-sm">Setup in pochi minuti</p>
         </div>

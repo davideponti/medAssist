@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { Stethoscope, Loader2, User, Building2 } from 'lucide-react'
-import { PASSWORD_HINT_IT, validatePasswordStrength } from '@/lib/password-policy'
+import { validatePasswordStrength } from '@/lib/password-policy'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -112,17 +112,16 @@ export default function SignupPage() {
                 label="Email"
                 type="email"
                 autoComplete="email"
-                placeholder="nome@email.it"
+                placeholder=""
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
-              <p className="text-xs text-gray-500 -mb-1">{PASSWORD_HINT_IT}</p>
               <Input
                 label="Password"
                 type="password"
                 autoComplete="new-password"
-                placeholder="Min. 8 caratteri, numero e simbolo"
+                placeholder=""
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -132,7 +131,7 @@ export default function SignupPage() {
                 label="Conferma password"
                 type="password"
                 autoComplete="new-password"
-                placeholder="Ripeti la password"
+                placeholder=""
                 value={passwordConfirm}
                 onChange={(e) => setPasswordConfirm(e.target.value)}
                 required
@@ -146,14 +145,14 @@ export default function SignupPage() {
               </div>
               <Input
                 label="Nome e titolo"
-                placeholder="es. Dott. Mario Rossi"
+                placeholder=""
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
               />
               <Input
                 label="Specializzazione"
-                placeholder="es. Medicina generale, Cardiologia..."
+                placeholder=""
                 value={specialization}
                 onChange={(e) => setSpecialization(e.target.value)}
                 required
@@ -163,24 +162,24 @@ export default function SignupPage() {
             <div className="space-y-3 border-t border-gray-100 pt-6">
               <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
                 <Building2 className="w-4 h-4 text-medical-600" />
-                Studio (opzionale)
+                Studio
               </div>
               <Input
                 label="Nome studio"
-                placeholder="Studio Medico..."
+                placeholder=""
                 value={clinic}
                 onChange={(e) => setClinic(e.target.value)}
               />
               <Input
                 label="Indirizzo"
-                placeholder="Via, CAP, città"
+                placeholder=""
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
               />
               <Input
                 label="Telefono"
                 type="tel"
-                placeholder="+39 ..."
+                placeholder=""
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
               />

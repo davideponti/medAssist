@@ -115,7 +115,7 @@ export default function PatientsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Pazienti</h1>
           <p className="text-gray-500">
-            Anagrafica salvata sul tuo progetto Supabase (tabella <code className="text-xs bg-gray-100 px-1 rounded">patients</code>).
+            Opzione dimostrativa; integrazione email non ancora collegata.
           </p>
         </div>
         <Button type="button" onClick={openModal} className="flex-shrink-0" disabled={loading}>
@@ -133,7 +133,7 @@ export default function PatientsPage() {
 
       <div className="max-w-md">
         <Input
-          placeholder="Cerca pazienti…"
+          placeholder="Cerca..."
           value={search}
           onChange={(e) => {
             const v = e.target.value
@@ -232,7 +232,7 @@ export default function PatientsPage() {
                 required
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="es. Mario Rossi"
+                placeholder=""
               />
               <Input
                 label="Età"
@@ -241,21 +241,21 @@ export default function PatientsPage() {
                 max={130}
                 value={form.age}
                 onChange={(e) => setForm((f) => ({ ...f, age: e.target.value }))}
-                placeholder="es. 45"
+                placeholder=""
               />
               <Input
                 label="Telefono"
                 type="tel"
                 value={form.phone}
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                placeholder="+39 …"
+                placeholder=""
               />
               <Input
                 label="Email"
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                placeholder="nome@email.it"
+                placeholder=""
               />
               <Input
                 label="Ultima visita"
@@ -268,14 +268,14 @@ export default function PatientsPage() {
                 rows={2}
                 value={form.diagnosis}
                 onChange={(e) => setForm((f) => ({ ...f, diagnosis: e.target.value }))}
-                placeholder="es. Ipertensione, follow-up…"
+                placeholder=""
               />
               <Textarea
                 label="Farmaci in uso"
                 rows={2}
                 value={form.medications}
                 onChange={(e) => setForm((f) => ({ ...f, medications: e.target.value }))}
-                placeholder="es. Amlodipina 5 mg…"
+                placeholder=""
               />
               <div className="flex justify-end gap-3 pt-2">
                 <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>

@@ -2,14 +2,22 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { Mic, FileText, Inbox, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Mic, Inbox, Users, CalendarDays, CheckCircle2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/contexts/AuthContext'
+import { loadVisits, type StoredVisit } from '@/lib/visits-storage'
+import type { PatientMessageRow } from '@/lib/inbox-types'
+import type { Patient } from '@/lib/patient-types'
 
 export default function DashboardPage() {
   const { doctor } = useAuth()
   const greetingName = doctor?.name?.trim() || 'dottore'
+  const [visits, setVisits] = useState<StoredVisit[]>([])
+  const [messages, setMessages] = useState<PatientMessageRow[]>([])
+  const [patientsCount, setPatientsCount] = useState(0)
+  const [visitsExpanded, setVisitsExpanded] = useState(false)
+  const [inboxExpanded, setInboxExpanded] = useState(false)
 
   const [stripeSuccess, setStripeSuccess] = useState(false)
   const [stripeError, setStripeError] = useState<string | null>(null)
@@ -26,6 +34,62 @@ export default function DashboardPage() {
       setStripeError(error)
     }
   }, [])
+
+  useEffect(() => {
+    const refreshVisits = () => setVisits(loadVisits())
+    refreshVisits()
+    window.addEventListener('medassist-visits-updated', refreshVisits)
+    window.addEventListener('storage', refreshVisits)
+    return () => {
+      window.removeEventListener('medassist-visits-updated', refreshVisits)
+      window.removeEventListener('storage', refreshVisits)
+    }
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+    const fetchMessages = async () => {
+      try {
+        const res = await fetch('/api/inbox/messages', { credentials: 'include', cache: 'no-store' })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) return
+        if (mounted) setMessages(data.messages ?? [])
+      } catch {
+        /* ignore */
+      }
+    }
+    void fetchMessages()
+    const id = window.setInterval(() => void fetchMessages(), 10000)
+    return () => {
+      mounted = false
+      window.clearInterval(id)
+    }
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+    const fetchPatients = async () => {
+      try {
+        const res = await fetch('/api/patients', { credentials: 'include', cache: 'no-store' })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) return
+        const patients = (data.patients ?? []) as Patient[]
+        if (mounted) setPatientsCount(patients.length)
+      } catch {
+        /* ignore */
+      }
+    }
+    void fetchPatients()
+    const id = window.setInterval(() => void fetchPatients(), 15000)
+    return () => {
+      mounted = false
+      window.clearInterval(id)
+    }
+  }, [])
+
+  const unread = messages.filter((m) => !m.read_at).length
+  const visitsVisible = visitsExpanded ? visits : visits.slice(0, 3)
+  const messagesVisible = inboxExpanded ? messages : messages.slice(0, 3)
 
   return (
     <div className="space-y-6">
@@ -66,33 +130,29 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      <div className="grid md:grid-cols-4 gap-4">
-        <StatCard
-          icon={Mic}
-          label="Visite Oggi"
-          value="12"
-          trend="+2"
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MiniStat
+          icon={CalendarDays}
+          label="Visite registrate"
+          value={String(visits.length)}
           color="bg-medical-100 text-medical-600"
         />
-        <StatCard
-          icon={FileText}
-          label="Documenti Generati"
-          value="28"
-          trend="+5"
+        <MiniStat
+          icon={Inbox}
+          label="Messaggi ricevuti"
+          value={String(messages.length)}
           color="bg-primary-100 text-primary-600"
         />
-        <StatCard
-          icon={Inbox}
-          label="Messaggi Pending"
-          value="8"
-          trend="-3"
+        <MiniStat
+          icon={Mic}
+          label="Messaggi non letti"
+          value={String(unread)}
           color="bg-amber-100 text-amber-600"
         />
-        <StatCard
-          icon={Clock}
-          label="Ore Risparmiate"
-          value="4.5h"
-          trend="+1.2h"
+        <MiniStat
+          icon={Users}
+          label="Pazienti"
+          value={String(patientsCount)}
           color="bg-green-100 text-green-600"
         />
       </div>
@@ -102,25 +162,66 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle>Visite Recenti</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <VisitRow patient="Mario Rossi" time="10:30" diagnosis="Controllo diabete" />
-              <VisitRow patient="Laura Bianchi" time="11:15" diagnosis="Ipertensione" />
-              <VisitRow patient="Giuseppe Verdi" time="12:00" diagnosis="Dolore lombare" />
-              <VisitRow patient="Anna Neri" time="14:30" diagnosis="Referral cardiologia" />
+          <CardContent className="min-h-[320px]">
+            {visitsVisible.length === 0 ? (
+              <p className="text-sm text-gray-500">Nessuna visita recente.</p>
+            ) : (
+              <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                {visitsVisible.map((v) => (
+                  <VisitRow
+                    key={v.id}
+                    patient={v.title?.trim() || v.patientContext?.split('\n')[0] || 'Visita'}
+                    time={new Date(v.createdAt).toLocaleString('it-IT')}
+                    diagnosis={v.clinicalNote.assessment || '—'}
+                  />
+                ))}
+              </div>
+            )}
+            <div className="mt-4">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => setVisitsExpanded((v) => !v)}
+                disabled={visits.length <= 3}
+              >
+                {visitsExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                {visitsExpanded ? 'Riduci' : 'Espandi'}
+              </Button>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Inbox Pazienti</CardTitle>
+            <CardTitle>Inbox Pazienti {unread > 0 ? `(${unread} non letti)` : ''}</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <InboxRow patient="Mario Rossi" message="Ho dimenticato di chiedere..." time="2h fa" />
-              <InboxRow patient="Laura Bianchi" message="Risultati esami del sangue" time="5h fa" />
-              <InboxRow patient="Giuseppe Verdi" message="Ricetta scaduta" time="1g fa" />
+          <CardContent className="min-h-[320px]">
+            {messagesVisible.length === 0 ? (
+              <p className="text-sm text-gray-500">Nessun messaggio recente.</p>
+            ) : (
+              <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                {messagesVisible.map((m) => (
+                  <InboxRow
+                    key={m.id}
+                    patient={m.patient_name}
+                    message={m.body}
+                    time={new Date(m.created_at).toLocaleString('it-IT')}
+                  />
+                ))}
+              </div>
+            )}
+            <div className="mt-4">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => setInboxExpanded((v) => !v)}
+                disabled={messages.length <= 3}
+              >
+                {inboxExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                {inboxExpanded ? 'Riduci' : 'Espandi'}
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -129,31 +230,26 @@ export default function DashboardPage() {
   )
 }
 
-function StatCard({
+function MiniStat({
   icon: Icon,
   label,
   value,
-  trend,
   color,
 }: {
   icon: React.ElementType
   label: string
   value: string
-  trend: string
   color: string
 }) {
   return (
     <div className="bg-white rounded-xl p-4 border border-gray-100">
-      <div className="flex items-center justify-between mb-3">
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
-          <Icon className="w-5 h-5" />
+      <div className="flex items-center gap-2 mb-2">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${color}`}>
+          <Icon className="w-4 h-4" />
         </div>
-        <span className={`text-sm font-medium ${trend.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
-          {trend}
-        </span>
+        <span className="text-sm text-gray-600">{label}</span>
       </div>
       <p className="text-2xl font-bold text-gray-900">{value}</p>
-      <p className="text-sm text-gray-500">{label}</p>
     </div>
   )
 }

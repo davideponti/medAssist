@@ -124,9 +124,16 @@ export default function PagamentoProvaPage() {
               onChange={(e) => setAccepted(e.target.checked)}
             />
             <span className="text-sm text-gray-700 leading-snug">
-              Dichiaro di aver preso visione dell&apos;informativa sul periodo di prova e di accettare che, salvo
-              disdetta tempestiva, decorso il {trialEndLabel} si applichi il canone mensile di € 49,00 secondo le condizioni
-              contrattuali.
+              Ho letto e accetto i{' '}
+              <Link href="/termini-e-condizioni" target="_blank" className="underline text-primary-700">
+                Termini e Condizioni
+              </Link>{' '}
+              e la{' '}
+              <Link href="/privacy-policy" target="_blank" className="underline text-primary-700">
+                Privacy Policy
+              </Link>
+              . Confermo inoltre che, salvo disdetta tempestiva, decorso il {trialEndLabel} si applichera il canone
+              mensile di EUR 49,00.
             </span>
           </label>
 

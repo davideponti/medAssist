@@ -36,7 +36,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ messages: data as PatientMessageRow[] })
+    return NextResponse.json(
+      { messages: data as PatientMessageRow[] },
+      {
+        headers: {
+          'Cache-Control': 'no-store, max-age=0',
+        },
+      }
+    )
   } catch (e) {
     console.error('inbox messages GET:', e)
     return NextResponse.json({ error: 'Errore server' }, { status: 500 })

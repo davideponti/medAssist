@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getStripe } from '@/lib/stripe-server'
+import { getClientIp, isAllowedOrigin, rateLimit } from '@/lib/api-security'
 
 export const dynamic = 'force-dynamic'
 
 /** Abbonamento mensile con 7 giorni di prova — richiede un Price ricorrente su Stripe Dashboard. */
 export async function POST(request: NextRequest) {
   try {
+    if (!isAllowedOrigin(request)) {
+      return NextResponse.json({ error: 'Origine richiesta non consentita.' }, { status: 403 })
+    }
+    const ip = getClientIp(request)
+    const rl = rateLimit(`stripe-checkout:${ip}`, 8, 60_000)
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Troppe richieste di checkout. Riprova tra poco.' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
+      )
+    }
+
     const priceId = process.env.STRIPE_PRICE_PROFESSIONAL?.trim()
     if (!priceId) {
       return NextResponse.json(

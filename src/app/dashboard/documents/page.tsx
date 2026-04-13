@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { FileText, Copy, Check, Download, FilePlus } from 'lucide-react'
+import { FileText, Copy, Check, Download, FilePlus, FileDown } from 'lucide-react'
+import { jsPDF } from 'jspdf'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { Input, Textarea } from '@/components/ui/Input'
@@ -145,12 +146,142 @@ export default function DocumentsPage() {
     URL.revokeObjectURL(url)
   }
 
+  function cleanMarkdown(text: string): string {
+    return text
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/`/g, '')
+      .replace(/\*\*/g, '')
+      .replace(/\*/g, '')
+      .replace(/^#+\s/gm, '')
+      .replace(/^-\s/gm, '')
+      .trim();
+  }
+
+  const downloadPDF = (text: string, patientName: string, docType: StoredDocType, docId?: string) => {
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const margin = 20
+    const contentWidth = pageWidth - margin * 2
+    let y = 20
+
+    // Header background
+    doc.setFillColor(240, 248, 255)
+    doc.rect(0, 0, pageWidth, 45, 'F')
+
+    // Header text - Clinic name
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(14)
+    doc.setTextColor(25, 55, 109)
+    const clinicName = doctor?.clinic || doctor?.name || 'Studio Medico'
+    doc.text(clinicName, margin, y)
+    y += 7
+
+    // Doctor name and registration
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(80, 80, 80)
+    if (doctor?.name) {
+      doc.text(doctor.name, margin, y)
+      y += 5
+    }
+    if (doctor?.albo_registration) {
+      doc.text(`Iscritto all'Ordine dei Medici: ${doctor.albo_registration}`, margin, y)
+      y += 5
+    }
+    if (doctor?.address) {
+      doc.text(doctor.address, margin, y)
+      y += 5
+    }
+    if (doctor?.phone) {
+      doc.text(`Tel: ${doctor.phone}`, margin, y)
+      y += 5
+    }
+
+    // Separator line
+    y = 55
+    doc.setDrawColor(200, 200, 200)
+    doc.line(margin, y, pageWidth - margin, y)
+    y += 15
+
+    // Date
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(100, 100, 100)
+    const today = new Date().toLocaleDateString('it-IT')
+    doc.text(`Data: ${today}`, margin, y)
+    y += 12
+
+    // Patient
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(11)
+    doc.setTextColor(40, 40, 40)
+    doc.text(`Paziente: ${patientName}`, margin, y)
+    y += 15
+
+    // Document body
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(11)
+    doc.setTextColor(50, 50, 50)
+
+    const cleanText = cleanMarkdown(text)
+    const splitText = doc.splitTextToSize(cleanText, contentWidth)
+    let textLines = splitText as string[]
+
+    // Handle pagination
+    const maxY = doc.internal.pageSize.getHeight() - 60 // Leave space for signature
+
+    for (let i = 0; i < textLines.length; i++) {
+      if (y > maxY) {
+        doc.addPage()
+        y = 20
+      }
+      doc.text(textLines[i], margin, y)
+      y += 6
+    }
+
+    // Signature space
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const sigY = pageHeight - 40
+
+    // Check if we need a new page for signature
+    if (y > sigY - 10) {
+      doc.addPage()
+      y = 20
+    }
+
+    // Signature line
+    doc.setDrawColor(100, 100, 100)
+    doc.setLineWidth(0.3)
+    doc.line(pageWidth - margin - 60, sigY, pageWidth - margin, sigY)
+
+    // Signature label
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(100, 100, 100)
+    doc.text('Firma del Medico', pageWidth - margin - 60, sigY + 6)
+
+    // Footer
+    doc.setFontSize(8)
+    doc.setTextColor(150, 150, 150)
+    doc.text(`Documento generato con MedAssist`, margin, pageHeight - 10)
+
+    // Save
+    const typeLabels: Record<StoredDocType, string> = {
+      letter: 'lettera',
+      certificate: 'certificato',
+      referral: 'referral',
+    }
+    const suffix = docId || Date.now().toString()
+    const filename = `${typeLabels[docType]}-${patientName.replace(/\s+/g, '-')}-${suffix}.pdf`
+    doc.save(filename)
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Documenti</h1>
         <p className="text-gray-500">
-          Genera testi con AI e consulta l&apos;archivio per tipologia (stesso browser).
+          Genera testi con AI e consulta l&apos;archivio per tipologia.
         </p>
         {doctor && (doctor.clinic || doctor.name || doctor.address || doctor.phone || doctor.albo_registration) && (
           <p className="text-sm text-medical-800 mt-2">
@@ -204,7 +335,7 @@ export default function DocumentsPage() {
             </div>
             <div className="sm:ml-auto sm:max-w-xs w-full">
               <Input
-                placeholder="Cerca in questa categoria…"
+                placeholder="Cerca..."
                 value={archiveSearch}
                 onChange={(e) => setArchiveSearch(e.target.value)}
               />
@@ -280,14 +411,14 @@ export default function DocumentsPage() {
             <CardContent className="space-y-4">
               <Input
                 label="Nome Paziente"
-                placeholder="Mario Rossi"
+                placeholder=""
                 value={patientName}
                 onChange={(e) => setPatientName(e.target.value)}
               />
 
               <Textarea
-                label="Info Paziente (opzionale)"
-                placeholder="Età, diagnosi, farmaci in corso..."
+                label="Info Paziente"
+                placeholder=""
                 value={patientInfo}
                 onChange={(e) => setPatientInfo(e.target.value)}
                 rows={2}
@@ -296,7 +427,7 @@ export default function DocumentsPage() {
               {(docType === 'referral' || docType === 'letter') && (
                 <Input
                   label={docType === 'referral' ? 'Specialista/Reparto destinatario' : 'Destinatario'}
-                  placeholder={docType === 'referral' ? 'Cardiologia - Ospedale X' : ''}
+                  placeholder=""
                   value={destination}
                   onChange={(e) => setDestination(e.target.value)}
                 />
@@ -304,13 +435,7 @@ export default function DocumentsPage() {
 
               <Textarea
                 label="Informazioni Aggiuntive"
-                placeholder={
-                  docType === 'referral'
-                    ? 'Motivo della consulenza, sintomi, esami già effettuati...'
-                    : docType === 'certificate'
-                    ? 'Motivo del certificato, giorni di prognosi...'
-                    : 'Contenuto della lettera...'
-                }
+                placeholder=""
                 value={additionalInfo}
                 onChange={(e) => setAdditionalInfo(e.target.value)}
                 rows={4}
@@ -343,7 +468,15 @@ export default function DocumentsPage() {
                       }
                     >
                       <Download className="w-4 h-4" />
-                      Scarica
+                      Scarica TXT
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => downloadPDF(generatedDoc, patientName, docType)}
+                    >
+                      <FileDown className="w-4 h-4" />
+                      Scarica PDF
                     </Button>
                     <Button variant="secondary" size="sm" onClick={() => setPageTab('archivio')}>
                       Vai all&apos;archivio
@@ -395,8 +528,24 @@ export default function DocumentsPage() {
                       `${openArchiveDoc.type}-${openArchiveDoc.patientName.replace(/\s+/g, '-')}-${openArchiveDoc.id}.txt`
                     )
                   }
+                  title="Scarica TXT"
                 >
                   <Download className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    downloadPDF(
+                      openArchiveDoc.body,
+                      openArchiveDoc.patientName,
+                      openArchiveDoc.type,
+                      openArchiveDoc.id
+                    )
+                  }
+                  title="Scarica PDF"
+                >
+                  <FileDown className="w-4 h-4" />
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setOpenArchiveDoc(null)}>
                   Chiudi

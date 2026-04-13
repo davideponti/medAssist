@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const name = String(body.name ?? '').trim()
     if (!name) {
-      return NextResponse.json({ error: 'Il nome è obbligatorio' }, { status: 400 })
+      return NextResponse.json({ error: 'Il nome è richiesto' }, { status: 400 })
     }
 
     const ageRaw = body.age

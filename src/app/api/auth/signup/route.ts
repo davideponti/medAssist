@@ -1,9 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { validatePasswordStrength } from '@/lib/password-policy'
+import { getClientIp, isAllowedOrigin, rateLimit } from '@/lib/api-security'
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isAllowedOrigin(request)) {
+      return NextResponse.json({ error: 'Origine richiesta non consentita.' }, { status: 403 })
+    }
+    const ip = getClientIp(request)
+    const rl = await rateLimit(`auth-signup:${ip}`, 6, 60_000)
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Troppe richieste di registrazione. Riprova tra poco.' },
+        { 
+          status: 429, 
+          headers: { 
+            'Retry-After': String(rl.retryAfterSec),
+            'X-RateLimit-Limit': String(rl.total),
+            'X-RateLimit-Remaining': String(rl.remaining),
+            'X-RateLimit-Reset': String(Date.now() + rl.retryAfterSec * 1000)
+          } 
+        }
+      )
+    }
+
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       console.error('Signup: SUPABASE_SERVICE_ROLE_KEY mancante in .env.local')
       return NextResponse.json(

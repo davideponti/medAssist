@@ -202,22 +202,16 @@ export default function SettingsPage() {
           />
           <Input
             label="Iscrizione all'Ordine dei Medici (Albo)"
-            placeholder="es. O.M. Provincia di Milano n. 12345"
+            placeholder=""
             value={profile.albo_registration}
             onChange={(e) => setProfile({ ...profile, albo_registration: e.target.value })}
           />
-          <p className="text-xs text-gray-500 -mt-2">
-            Comparirà nei documenti generati (referral, certificati, lettere).
-          </p>
           <Input
             label="Codice fiscale (medico)"
-            placeholder="es. RSSMRA80A01F205X"
+            placeholder=""
             value={profile.fiscal_code}
             onChange={(e) => setProfile({ ...profile, fiscal_code: e.target.value.toUpperCase() })}
           />
-          <p className="text-xs text-gray-500 -mt-2">
-            Utile per certificati e documenti ufficiali; non sostituisce sistemi di ricetta elettronica.
-          </p>
         </CardContent>
       </Card>
 

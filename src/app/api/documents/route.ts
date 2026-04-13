@@ -52,7 +52,12 @@ export async function POST(request: NextRequest) {
     const doctor = await getDoctorFromAuth(request)
     const document = await generateDocument(type, context, doctor)
 
-    return NextResponse.json({ document })
+    const cleanedDocument = document
+      .replace(/^```[\w]*\n?/, '')
+      .replace(/```$/, '')
+      .trim();
+
+    return NextResponse.json({ document: cleanedDocument })
   } catch (error) {
     console.error('Document generation error:', error)
     const details = error instanceof Error ? error.message : String(error)

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Loader2, Send, Copy, Check, AlertCircle, Link2, Save } from 'lucide-react'
+import { Loader2, Send, Copy, Check, AlertCircle, Link2, Save, RefreshCw, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { Textarea } from '@/components/ui/Input'
@@ -10,10 +10,12 @@ import { useAuth } from '@/contexts/AuthContext'
 import type { PatientMessageRow } from '@/lib/inbox-types'
 
 export default function InboxPage() {
+  const INTRO_DISMISS_KEY = 'medassist_inbox_intro_dismissed'
   const { user } = useAuth()
   const [messages, setMessages] = useState<PatientMessageRow[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loadingList, setLoadingList] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
 
   const [patientContext, setPatientContext] = useState('')
@@ -21,34 +23,51 @@ export default function InboxPage() {
   const [manualReply, setManualReply] = useState('')
   const [savingManual, setSavingManual] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [hideIntro, setHideIntro] = useState(false)
 
   const selected = selectedId ? messages.find((m) => m.id === selectedId) ?? null : null
 
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
+  const fetchMessages = async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent ?? false
+    if (!silent) {
       setLoadingList(true)
-      setListError(null)
-      try {
-        const res = await fetch('/api/inbox/messages', { credentials: 'include' })
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok) {
-          throw new Error(data.error || 'Caricamento non riuscito')
-        }
-        const list = (data.messages ?? []) as PatientMessageRow[]
-        if (!cancelled) setMessages(list)
-      } catch (e) {
-        if (!cancelled) {
-          setListError(e instanceof Error ? e.message : 'Errore')
-          setMessages([])
-        }
-      } finally {
-        if (!cancelled) setLoadingList(false)
-      }
-    })()
-    return () => {
-      cancelled = true
+    } else {
+      setRefreshing(true)
     }
+    setListError(null)
+    try {
+      const res = await fetch('/api/inbox/messages', {
+        credentials: 'include',
+        cache: 'no-store',
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error || 'Caricamento non riuscito')
+      }
+      const list = (data.messages ?? []) as PatientMessageRow[]
+      setMessages(list)
+    } catch (e) {
+      setListError(e instanceof Error ? e.message : 'Errore')
+      if (!silent) {
+        setMessages([])
+      }
+    } finally {
+      setLoadingList(false)
+      setRefreshing(false)
+    }
+  }
+
+  useEffect(() => {
+    void fetchMessages()
+    const id = window.setInterval(() => {
+      void fetchMessages({ silent: true })
+    }, 10000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setHideIntro(window.localStorage.getItem(INTRO_DISMISS_KEY) === '1')
   }, [])
 
   useEffect(() => {
@@ -159,6 +178,31 @@ export default function InboxPage() {
     }
   }
 
+  const openPrecompiledEmail = () => {
+    if (!selected?.patient_email) {
+      alert('Questo messaggio non contiene una email paziente.')
+      return
+    }
+    const body = manualReply.trim()
+    if (!body) {
+      alert('Scrivi prima una risposta manuale.')
+      return
+    }
+    const subject = 'Risposta dello studio medico'
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+      selected.patient_email
+    )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+    window.open(gmailUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  const dismissIntroOnce = () => setHideIntro(true)
+  const dismissIntroPersisted = () => {
+    setHideIntro(true)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(INTRO_DISMISS_KEY, '1')
+    }
+  }
+
   const copyText = async (text: string) => {
     await navigator.clipboard.writeText(text)
     setCopied(true)
@@ -173,11 +217,30 @@ export default function InboxPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Inbox Pazienti</h1>
-        <p className="text-gray-500">
-          I messaggi inviati dai pazienti tramite il tuo link pubblico compaiono qui. Le notifiche in alto mostrano i messaggi non letti (nessun push sul telefono finché non integri un servizio di notifiche).
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-gray-900">Inbox Pazienti</h1>
+          <Button type="button" variant="secondary" size="sm" onClick={() => void fetchMessages({ silent: true })}>
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Aggiorna
+          </Button>
+        </div>
       </div>
+
+      {!hideIntro && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-lg text-sm flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+          <p>
+            I messaggi inviati dai pazienti tramite il tuo link pubblico compaiono qui.
+          </p>
+          <div className="flex items-center gap-2">
+            <Button type="button" size="sm" variant="secondary" onClick={dismissIntroOnce}>
+              Cancella
+            </Button>
+            <Button type="button" size="sm" onClick={dismissIntroPersisted}>
+              Non mostrare più
+            </Button>
+          </div>
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -206,9 +269,6 @@ export default function InboxPage() {
           ) : (
             <p className="text-amber-800">Accedi per vedere il link.</p>
           )}
-          <p className="text-xs text-gray-500">
-            Richiede la tabella <code className="bg-gray-100 px-1 rounded">patient_messages</code> su Supabase (migration 004).
-          </p>
           <Link href="/dashboard/settings" className="text-primary-600 text-sm font-medium hover:underline">
             Anche in Impostazioni →
           </Link>
@@ -274,10 +334,13 @@ export default function InboxPage() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-gray-700 whitespace-pre-wrap">{selected.body}</p>
-                    {selected.patient_email && (
-                      <p className="text-sm text-gray-500 mt-2">Email: {selected.patient_email}</p>
-                    )}
+                    <div className="bg-gray-50 border border-gray-100 rounded-lg p-4">
+                      <p className="text-gray-700 whitespace-pre-wrap">{selected.body}</p>
+                    </div>
+                    <div className="mt-3 text-sm text-gray-600 space-y-1">
+                      {selected.patient_email && <p>Email: {selected.patient_email}</p>}
+                      {selected.patient_phone && <p>Telefono: {selected.patient_phone}</p>}
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -287,25 +350,41 @@ export default function InboxPage() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <Textarea
-                      placeholder="Scrivi la risposta che invierai al paziente (email, WhatsApp, portale…)."
+                      placeholder=""
                       value={manualReply}
                       onChange={(e) => setManualReply(e.target.value)}
                       rows={5}
                     />
-                    <Button type="button" onClick={() => void saveManualReply()} loading={savingManual}>
-                      <Save className="w-4 h-4" />
-                      Salva risposta manuale
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button type="button" onClick={() => void saveManualReply()} loading={savingManual}>
+                        <Save className="w-4 h-4" />
+                        Salva risposta manuale
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={openPrecompiledEmail}
+                        disabled={!selected.patient_email || !manualReply.trim()}
+                      >
+                        <Mail className="w-4 h-4" />
+                        Apri in Gmail
+                      </Button>
+                    </div>
+                    {!selected.patient_email && (
+                      <p className="text-xs text-amber-700">
+                        Questo paziente non ha indicato una email: usa il numero di telefono se disponibile o un altro canale.
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Contesto clinico (opzionale, per l&apos;AI)</CardTitle>
+                    <CardTitle>Contesto clinico</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <Textarea
-                      placeholder="Storia clinica, farmaci, note precedenti…"
+                      placeholder=""
                       value={patientContext}
                       onChange={(e) => setPatientContext(e.target.value)}
                       rows={2}

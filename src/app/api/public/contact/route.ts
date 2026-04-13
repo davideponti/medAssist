@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
+import { getClientIp, isAllowedOrigin, rateLimit, verifyTurnstileToken } from '@/lib/api-security'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,10 +9,24 @@ const UUID_RE =
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isAllowedOrigin(request)) {
+      return NextResponse.json({ error: 'Origine richiesta non consentita.' }, { status: 403 })
+    }
+    const ip = getClientIp(request)
+    const rl = rateLimit(`public-contact:${ip}`, 8, 60_000)
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Troppe richieste. Riprova tra poco.' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
+      )
+    }
+
     const body = await request.json()
     const doctorId = String(body.doctorId ?? '').trim()
     const patientName = String(body.patientName ?? '').trim()
     const patientEmail = body.patientEmail != null ? String(body.patientEmail).trim() : ''
+    const patientPhone = body.patientPhone != null ? String(body.patientPhone).trim() : ''
+    const turnstileToken = body.turnstileToken != null ? String(body.turnstileToken).trim() : ''
     const message = String(body.message ?? '').trim()
 
     if (!UUID_RE.test(doctorId)) {
@@ -20,9 +35,22 @@ export async function POST(request: NextRequest) {
     if (!patientName || patientName.length > 200) {
       return NextResponse.json({ error: 'Indica un nome valido.' }, { status: 400 })
     }
+    if (!patientEmail && !patientPhone) {
+      return NextResponse.json(
+        { error: 'Inserisci almeno un contatto: email o numero di telefono.' },
+        { status: 400 }
+      )
+    }
     if (message.length < 3 || message.length > 8000) {
       return NextResponse.json(
         { error: 'Il messaggio deve contenere tra 3 e 8000 caratteri.' },
+        { status: 400 }
+      )
+    }
+    const turnstileOk = await verifyTurnstileToken(turnstileToken, ip)
+    if (!turnstileOk) {
+      return NextResponse.json(
+        { error: 'Verifica anti-spam non valida. Riprova.' },
         { status: 400 }
       )
     }
@@ -42,6 +70,7 @@ export async function POST(request: NextRequest) {
       doctor_id: doctorId,
       patient_name: patientName,
       patient_email: patientEmail || null,
+      patient_phone: patientPhone || null,
       body: message,
     })
 
