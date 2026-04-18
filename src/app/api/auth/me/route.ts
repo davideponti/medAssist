@@ -33,7 +33,10 @@ export async function GET(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    return NextResponse.json({ user, doctor })
+    return NextResponse.json({
+      user: { id: user.id, email: user.email },
+      doctor,
+    })
   } catch (error) {
     console.error('Get user error:', error)
     return NextResponse.json(

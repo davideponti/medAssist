@@ -6,6 +6,8 @@ export const dynamic = 'force-dynamic'
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+const PHONE_RE = /^[+]?[\d\s().-]{6,20}$/
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,6 +42,12 @@ export async function POST(request: NextRequest) {
         { error: 'Inserisci almeno un contatto: email o numero di telefono.' },
         { status: 400 }
       )
+    }
+    if (patientEmail && (!EMAIL_RE.test(patientEmail) || patientEmail.length > 254)) {
+      return NextResponse.json({ error: 'Indirizzo email non valido.' }, { status: 400 })
+    }
+    if (patientPhone && !PHONE_RE.test(patientPhone)) {
+      return NextResponse.json({ error: 'Numero di telefono non valido.' }, { status: 400 })
     }
     if (message.length < 3 || message.length > 8000) {
       return NextResponse.json(

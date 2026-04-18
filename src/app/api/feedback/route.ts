@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { generatePatientResponse } from '@/lib/openai'
 import { getSessionTokenFromRequest } from '@/lib/auth-session'
 import { createUserSupabase } from '@/lib/supabase-user'
 import { getClientIp, isAllowedOrigin, rateLimit } from '@/lib/api-security'
 
 export const dynamic = 'force-dynamic'
 
-const MAX_MSG = 8_000
-const MAX_CTX = 5_000
+const MAX_FEEDBACK = 5_000
 
+/** Salva feedback di cancellazione abbonamento */
 export async function POST(request: NextRequest) {
   try {
     if (!isAllowedOrigin(request)) {
@@ -18,17 +17,19 @@ export async function POST(request: NextRequest) {
     if (!token) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
+
     const supabase = createUserSupabase(token)
     const {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser()
+
     if (userError || !user) {
       return NextResponse.json({ error: 'Sessione non valida' }, { status: 401 })
     }
 
     const ip = getClientIp(request)
-    const rl = await rateLimit(`inbox-ai:${user.id}:${ip}`, 30, 60_000)
+    const rl = await rateLimit(`feedback:${user.id}:${ip}`, 10, 60_000)
     if (!rl.ok) {
       return NextResponse.json(
         { error: 'Troppe richieste. Riprova tra poco.' },
@@ -40,36 +41,22 @@ export async function POST(request: NextRequest) {
     if (!body || typeof body !== 'object') {
       return NextResponse.json({ error: 'Richiesta non valida.' }, { status: 400 })
     }
-    const { message, patientContext, previousContext, patientName } = body as Record<string, unknown>
+    const feedbackRaw = (body as Record<string, unknown>).feedback
 
-    if (typeof message !== 'string' || !message.trim()) {
-      return NextResponse.json(
-        { error: 'Messaggio richiesto.' },
-        { status: 400 }
-      )
+    if (!feedbackRaw || typeof feedbackRaw !== 'string' || feedbackRaw.trim().length === 0) {
+      return NextResponse.json({ error: 'Feedback mancante' }, { status: 400 })
     }
+    const feedback = feedbackRaw.trim().slice(0, MAX_FEEDBACK)
 
-    const safeMessage = message.slice(0, MAX_MSG)
-    const safeCtx = typeof patientContext === 'string' ? patientContext.slice(0, MAX_CTX) : undefined
-    const safePrev = typeof previousContext === 'string' ? previousContext.slice(0, MAX_CTX) : undefined
+    console.log('Feedback cancellazione:', { userId: user.id, feedback })
 
-    const patientNames: string[] = []
-    if (typeof patientName === 'string' && patientName.trim()) {
-      patientNames.push(patientName.trim().slice(0, 200))
-    }
+    // TODO: Creare tabella cancellations_feedback e salvare qui
 
-    const result = await generatePatientResponse(
-      safeMessage,
-      safeCtx,
-      safePrev,
-      patientNames
-    )
-
-    return NextResponse.json(result)
-  } catch (error) {
-    console.error('Inbox response error:', error)
+    return NextResponse.json({ success: true })
+  } catch (e) {
+    console.error('Feedback error:', e)
     return NextResponse.json(
-      { error: 'Failed to generate response' },
+      { error: 'Errore durante il salvataggio' },
       { status: 500 }
     )
   }

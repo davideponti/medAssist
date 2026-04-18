@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
       transcription?: string
       patientContext?: string
       corrections?: DoctorCorrections
+      patientNames?: string[]
     }
 
     const transcription = body.transcription?.trim()
@@ -45,8 +46,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Trascrizione richiesta' }, { status: 400 })
     }
 
-    const patientContextBase = body.patientContext?.trim() || ''
-    const corrections = body.corrections || {}
+    const MAX_TRANSCRIPTION = 50_000
+    const MAX_FIELD = 5_000
+    if (transcription.length > MAX_TRANSCRIPTION) {
+      return NextResponse.json({ error: 'Trascrizione troppo lunga.' }, { status: 413 })
+    }
+
+    const patientContextBase = (body.patientContext?.trim() || '').slice(0, MAX_FIELD)
+    const corrections: DoctorCorrections = body.corrections || {}
+    corrections.diagnosis = corrections.diagnosis?.slice(0, MAX_FIELD)
+    corrections.therapy = corrections.therapy?.slice(0, MAX_FIELD)
+    corrections.followup = corrections.followup?.slice(0, MAX_FIELD)
 
     const correctionsBlock = [
       corrections.diagnosis?.trim()
@@ -69,13 +79,19 @@ export async function POST(request: NextRequest) {
             .join('\n\n')
         : patientContextBase || undefined
 
-    const clinicalNote = await generateClinicalNote(transcription, patientContext)
+    const clinicalNote = await generateClinicalNote(
+      transcription,
+      patientContext,
+      body.patientNames
+    )
 
     return NextResponse.json({ clinicalNote })
   } catch (e) {
     console.error('SOAP generate:', e)
-    const msg = e instanceof Error ? e.message : 'Impossibile generare la SOAP'
-    return NextResponse.json({ error: msg }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Impossibile generare la SOAP. Riprova tra poco.' },
+      { status: 500 }
+    )
   }
 }
 

@@ -53,8 +53,9 @@ export async function POST(request: NextRequest) {
     if (error) {
       logAuthFailure(email, ip, error.message, userAgent)
       console.error('Login error:', error)
+      // Messaggio generico per prevenire user enumeration
       return NextResponse.json(
-        { error: error.message },
+        { error: 'Credenziali non valide.' },
         { status: 401 }
       )
     }
@@ -77,7 +78,10 @@ export async function POST(request: NextRequest) {
     logAuthSuccess(data.user.id, email, ip, userAgent)
     
     const res = NextResponse.json({
-      user: data.user,
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+      },
       doctor,
     })
     res.cookies.set(

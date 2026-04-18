@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Script from 'next/script'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
@@ -11,15 +11,29 @@ import { Stethoscope, Loader2, CheckCircle } from 'lucide-react'
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ''
 
+/**
+ * Turnstile API minimal type (Cloudflare). Evita il global window.onTurnstileSuccess
+ * per prevenire override da script terzi.
+ */
+type TurnstileApi = {
+  render: (
+    el: HTMLElement | string,
+    opts: { sitekey: string; callback: (token: string) => void }
+  ) => string
+  reset: (widgetId?: string) => void
+}
 declare global {
   interface Window {
-    onTurnstileSuccess?: (token: string) => void
+    turnstile?: TurnstileApi
   }
 }
 
 export default function PublicContactPage() {
   const params = useParams()
   const doctorId = typeof params.doctorId === 'string' ? params.doctorId : ''
+
+  const turnstileRef = useRef<HTMLDivElement>(null)
+  const turnstileWidgetId = useRef<string | null>(null)
 
   const [patientName, setPatientName] = useState('')
   const [patientEmail, setPatientEmail] = useState('')
@@ -71,7 +85,13 @@ export default function PublicContactPage() {
           src="https://challenges.cloudflare.com/turnstile/v0/api.js"
           strategy="afterInteractive"
           onLoad={() => {
-            window.onTurnstileSuccess = (token: string) => setTurnstileToken(token)
+            // Render esplicito con callback locale (no window global)
+            if (window.turnstile && turnstileRef.current && !turnstileWidgetId.current) {
+              turnstileWidgetId.current = window.turnstile.render(turnstileRef.current, {
+                sitekey: TURNSTILE_SITE_KEY,
+                callback: (token: string) => setTurnstileToken(token),
+              })
+            }
           }}
         />
       )}
@@ -133,13 +153,7 @@ export default function PublicContactPage() {
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder=""
                 />
-                {TURNSTILE_SITE_KEY && (
-                  <div
-                    className="cf-turnstile"
-                    data-sitekey={TURNSTILE_SITE_KEY}
-                    data-callback="onTurnstileSuccess"
-                  />
-                )}
+                {TURNSTILE_SITE_KEY && <div ref={turnstileRef} />}
                 {error && (
                   <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
                     {error}
@@ -153,7 +167,7 @@ export default function PublicContactPage() {
           </CardContent>
         </Card>
         <p className="text-xs text-gray-500 text-center mt-6">
-          Servizio tramite MedAssist AI. I messaggi sono destinati allo studio del medico titolare del link.
+          Servizio tramite medincly. I messaggi sono destinati allo studio del medico titolare del link.
         </p>
       </div>
     </main>

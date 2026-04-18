@@ -15,6 +15,7 @@ Applicazione web per studi medici che combina **Next.js 14**, **Supabase** (aute
 - [API REST (route interne)](#api-rest-route-interne)
 - [Struttura del progetto](#struttura-del-progetto)
 - [Autenticazione e sessione](#autenticazione-e-sessione)
+- [Sicurezza](#sicurezza)
 - [Note legali e deontologiche](#note-legali-e-deontologiche)
 
 ---
@@ -74,8 +75,8 @@ Applicazione web per studi medici che combina **Next.js 14**, **Supabase** (aute
 
 - **Next.js 14** (App Router), **React 18**, **TypeScript**
 - **Tailwind CSS**
-- **Supabase** (`@supabase/supabase-js`): Auth + tabella `doctors`
-- **OpenAI** (SDK ufficiale): Whisper, chat completions (es. `gpt-4o`)
+- **Supabase** (`@supabase/supabase-js`): Auth + tabella `doctors` (regione UE per GDPR)
+- **Azure OpenAI** (SDK `openai` con `AzureOpenAI`): Whisper + gpt-4o in regione EU (Sweden Central) per conformità GDPR. Fallback su OpenAI standard se `AZURE_OPENAI_*` non è configurato.
 - **Stripe** (`stripe`): Checkout per abbonamento al piano Professionale (prova 7 giorni + canone mensile)
 - **lucide-react** (icone)
 
@@ -84,8 +85,8 @@ Applicazione web per studi medici che combina **Next.js 14**, **Supabase** (aute
 ## Requisiti
 
 - **Node.js** 18+ (consigliato 20 LTS)
-- Account **Supabase** (progetto con Auth email/password abilitato)
-- Chiave **OpenAI** con accesso ai modelli usati dall’app
+- Account **Supabase** (progetto con Auth email/password abilitato, regione UE)
+- **Azure OpenAI** con deployment `gpt-4o` e `whisper` in regione EU (consigliato per GDPR) **oppure** chiave **OpenAI** standard come fallback
 
 ---
 
@@ -120,16 +121,31 @@ Altri comandi:
 
 Crea `.env.local` (non committare). Esempio in `.env.local.example`:
 
+### AI — Azure OpenAI (consigliato, GDPR) oppure OpenAI
+
+Il codice usa **Azure OpenAI** se sono presenti le variabili `AZURE_OPENAI_*`, altrimenti ripiega su `OPENAI_API_KEY`.
+
 | Variabile | Obbligatoria | Ruolo |
 |-----------|--------------|--------|
-| `OPENAI_API_KEY` | Sì (per AI / trascrizioni) | Chiamate OpenAI lato server |
+| `AZURE_OPENAI_ENDPOINT` | Sì (GDPR) | Endpoint risorsa Azure AI Foundry (es. `https://medincly1.services.ai.azure.com/`) |
+| `AZURE_OPENAI_KEY` | Sì (GDPR) | KEY 1 della risorsa Azure OpenAI |
+| `AZURE_OPENAI_DEPLOYMENT_GPT4O` | Sì | Nome del deployment del modello chat (es. `gpt-4o`) |
+| `AZURE_OPENAI_DEPLOYMENT_WHISPER` | Sì (trascrizioni) | Nome del deployment Whisper (es. `whisper`) |
+| `AZURE_OPENAI_API_VERSION` | Opzionale | Default `2024-10-21` |
+| `OPENAI_API_KEY` | Fallback | Usata solo se le variabili Azure non sono configurate |
+
+### Altre variabili
+
+| Variabile | Obbligatoria | Ruolo |
+|-----------|--------------|--------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Sì | URL progetto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Sì | Chiave anon (client e alcune route) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Sì (signup, profilo server, documenti con profilo) | Operazioni server-side (es. `auth.admin`, bypass RLS dove serve) |
-| `NEXT_PUBLIC_APP_URL` | Opzionale | URL pubblico dell’app se usato altrove |
+| `NEXT_PUBLIC_APP_URL` | Opzionale | URL pubblico dell'app se usato altrove |
 | `STRIPE_SECRET_KEY` | Sì (piano Professionale / Checkout) | Chiave segreta Stripe (solo server); non usare `NEXT_PUBLIC_` |
 | `STRIPE_PRICE_PROFESSIONAL` | Sì (Checkout) | ID del **prezzo ricorrente** mensile in Stripe (es. `price_...` per 49 €) |
 | `STRIPE_WEBHOOK_SECRET` | Opzionale | Verifica firma per `POST /api/stripe/webhook` (eventi Stripe) |
+| `REDIS_URL` | Opzionale | Rate limiting persistente (altrimenti fallback in-memory) |
 
 Dopo ogni modifica a `.env.local` in sviluppo, **riavvia** `npm run dev`.
 
@@ -209,12 +225,134 @@ supabase/migrations/   # Script SQL per doctors
 
 ---
 
+## Sicurezza
+
+### 1. Cookie e Sessione
+
+| Caratteristica | Implementazione |
+|----------------|-----------------|
+| **Cookie httpOnly** | Il token JWT non è accessibile via JavaScript (`medassist_session`) |
+| **Secure** | Cookie marcato `Secure` in produzione (HTTPS) |
+| **SameSite** | `Lax` per prevenire CSRF cross-site |
+| **Max-Age** | 7 giorni di durata della sessione |
+| **Logout** | Cancellazione cookie lato server con path `/` |
+
+### 2. Protezione API
+
+- **Rate limiting**: implementato su endpoint sensibili (login, checkout Stripe) con `lib/api-security.ts`
+- **Origin validation**: verifica `Referer`/`Origin` su API critiche
+- **Input validation**: sanitizzazione input con validazione tipo Zod
+- **Error handling**: messaggi generici in produzione, log dettagliati solo server-side
+
+### 3. Row Level Security (RLS) Supabase
+
+Tutte le tabelle dati hanno RLS attivo:
+
+```sql
+-- Esempio: ogni medico vede solo i propri dati
+CREATE POLICY "Medici vedono solo i propri record"
+ON doctors FOR SELECT
+USING (auth.uid() = id);
+```
+
+| Tabella | Policy |
+|---------|--------|
+| `doctors` | Utente vede/modifica solo il proprio record (`id = auth.uid()`) |
+| `patients` | `doctor_id` collegato al medico autenticato |
+| `patient_messages` | Lettura solo per il medico destinatario (`doctor_id`) |
+
+### 4. Gestione Chiavi API
+
+| Chiave | Dove | Protezione |
+|--------|------|------------|
+| `OPENAI_API_KEY` | Server routes only | Non esposta al client |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server routes only | `server-only` import, mai `NEXT_PUBLIC_` |
+| `STRIPE_SECRET_KEY` | Server routes only | Non committare, `.env.local` |
+| `NEXT_PUBLIC_*` | Client | Solo chiavi pubbliche (anon key, URL Supabase) |
+
+**Regole d'oro:**
+- ❌ Mai prefissare chiavi server con `NEXT_PUBLIC_`
+- ❌ Mai importare `SUPABASE_SERVICE_ROLE_KEY` in componenti client
+- ✅ Usare `server-only` per moduli server-side
+
+### 5. Sicurezza Stripe
+
+- **Webhook signature**: verifica `STRIPE_WEBHOOK_SECRET` su ogni evento Stripe
+- **Idempotenza**: le operazioni di checkout sono atomiche
+- **Customer isolation**: ogni medico ha il proprio `stripe_customer_id`
+- **No dati sensibili**: non salviamo carte di credito (gestite da Stripe)
+
+### 6. Best Practices Produzione
+
+```bash
+# 1. HTTPS obbligatorio
+# Configura SSL/TLS sul server di produzione
+
+# 2. Header di sicurezza (next.config.js)
+async headers() {
+  return [{
+    source: '/:path*',
+    headers: [
+      { key: 'X-Frame-Options', value: 'DENY' },
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+    ],
+  }]
+}
+
+# 3. Dependency audit
+npm audit
+npm audit fix
+
+# 4. Environment separation
+# .env.local (dev) vs variabili deploy (produzione)
+# Mai riutilizzare chiavi tra ambienti
+```
+
+### 7. GDPR, DPA e Privacy
+
+#### Ruoli GDPR
+- **Medico (studio)** = **Data Controller** (titolare del trattamento)
+- **Piattaforma** = **Data Processor** (responsabile del trattamento)
+- **Fornitori cloud** (Azure, Supabase, Stripe) = sub-processor
+
+#### Dati e regioni di processing
+
+| Dato | Fornitore | Regione | DPA |
+|------|-----------|---------|-----|
+| Autenticazione, profili medici, pazienti, messaggi | Supabase | UE (configurabile) | ✅ Disponibile, da accettare |
+| Trascrizioni audio (Whisper) | **Azure OpenAI** | **Sweden Central (UE)** | ✅ Incluso con Azure |
+| Note SOAP, documenti, risposte inbox (gpt-4o) | **Azure OpenAI** | **Sweden Central (UE)** | ✅ Incluso con Azure |
+| Pagamenti/abbonamenti | Stripe | UE + globale | ✅ Incluso |
+
+#### Caratteristiche
+
+- **Dati sanitari**: classificati come dati di categoria speciale (art. 9 GDPR)
+- **Pseudonimizzazione pre-AI** (`src/lib/anonymize.ts`): nomi pazienti, codici fiscali, email, telefoni e date sono sostituiti con placeholder (`[PAZIENTE_0]`, `[CF_0]`, ecc.) prima dell'invio ad Azure OpenAI. I valori vengono ripristinati nella risposta. Conforme GDPR art. 4(5).
+- **Azure OpenAI**: nessun training sui dati del cliente, dati elaborati in regione UE
+- **Monitoraggio abusi**: richiedere a Microsoft l'esenzione per dati sanitari tramite [aka.ms/oai/additionalusecases](https://aka.ms/oai/additionalusecases)
+- **Consenso**: pagina contatto paziente richiede conferma esplicita
+- **Retention**: i dati rimangono nel database del medico (data controller)
+- **Breach notification**: sistema di log per tracciare accessi anomali
+- **Nessuna prescrizione**: l'app non genera ricette elettroniche né sostituisce i sistemi ufficiali
+
+#### Checklist produzione
+
+- [ ] Accettare DPA Supabase (Dashboard → Settings)
+- [ ] Verificare regione UE Supabase
+- [ ] Azure OpenAI configurato in regione UE
+- [ ] Richiesta esenzione monitoraggio abusi per Azure OpenAI
+- [ ] Privacy policy pubblica con data mapping
+- [ ] Termini di servizio con ruoli Data Controller/Processor
+- [ ] Registro dei trattamenti (art. 30 GDPR)
+
+---
+
 ## Note legali e deontologiche
 
 - L’app è uno **strumento di supporto**: output generati dall’AI vanno **sempre verificati** dal medico.
 - L’app **non genera prescrizioni** né ricette elettroniche. I documenti testuali prodotti **non sostituiscono** i sistemi ufficiali (ricetta elettronica, NRE, fascicolo sanitario, ecc.).
 - Il titolare del trattamento dati sanitari e le finalità del trattamento restano responsabilità dello **studio** e devono rispettare GDPR e normativa professionale.
-
 ---
 
 ## Licenza e contributi

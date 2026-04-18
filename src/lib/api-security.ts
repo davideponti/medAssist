@@ -1,9 +1,32 @@
 import type { NextRequest } from 'next/server'
 import { rateLimit as redisRateLimit } from './redis-rate-limit'
 
+/**
+ * Restituisce l'IP del client in modo affidabile.
+ *
+ * In produzione dietro proxy (Vercel, Cloudflare, Nginx), `x-forwarded-for`
+ * contiene la catena di IP; il PRIMO è quello del client.
+ *
+ * In sviluppo locale, si ripiega su `x-real-ip` o una stringa deterministica.
+ * Non utilizzare questo IP per decisioni di sicurezza assolute, solo come
+ * componente di chiavi di rate limiting.
+ */
 export function getClientIp(request: NextRequest): string {
+  // Vercel imposta x-real-ip con l'IP client effettivo
+  const realIp = request.headers.get('x-real-ip')?.trim()
+  if (realIp) return realIp
+
+  // Cloudflare (se usato in futuro)
+  const cf = request.headers.get('cf-connecting-ip')?.trim()
+  if (cf) return cf
+
+  // Fallback su x-forwarded-for
   const xf = request.headers.get('x-forwarded-for')
-  if (xf) return xf.split(',')[0].trim()
+  if (xf) {
+    const first = xf.split(',')[0].trim()
+    if (first) return first
+  }
+
   return 'unknown'
 }
 
@@ -27,7 +50,15 @@ export function isAllowedOrigin(request: NextRequest): boolean {
 
 export async function verifyTurnstileToken(token: string, remoteIp?: string): Promise<boolean> {
   const secret = process.env.TURNSTILE_SECRET_KEY?.trim()
-  if (!secret) return true
+  if (!secret) {
+    // Fail-closed in produzione: se la chiave manca, NON disabilitare silenziosamente
+    // il captcha. In dev/test consentiamo il bypass per sviluppo locale.
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[SECURITY] TURNSTILE_SECRET_KEY mancante in produzione: captcha disabilitato!')
+      return false
+    }
+    return true
+  }
   if (!token) return false
 
   const body = new URLSearchParams()

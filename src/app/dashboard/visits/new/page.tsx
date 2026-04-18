@@ -217,15 +217,19 @@ export default function NewVisitPage() {
             .join('\n\n')
         : patientContext?.trim() || ''
 
-      const saved = saveVisit({
+      const saved = await saveVisit({
         title: titleTrim,
         archived: false,
         patientContext: storedPatientContext,
         transcription,
         clinicalNote: data.clinicalNote,
       })
-      setSavedVisitId(saved.id)
-      window.dispatchEvent(new Event('medassist-visits-updated'))
+      if (saved) {
+        setSavedVisitId(saved.id)
+        window.dispatchEvent(new Event('medassist-visits-updated'))
+      } else {
+        console.warn('Visita non salvata server-side (errore rete o sessione).')
+      }
     } catch (e) {
       console.error('SOAP generation error:', e)
       const msg = e instanceof Error ? e.message : 'Impossibile generare la SOAP.'

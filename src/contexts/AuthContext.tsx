@@ -20,6 +20,14 @@ type Doctor = {
   albo_registration?: string | null
   /** Codice fiscale medico */
   fiscal_code?: string | null
+  /** Timestamp fields */
+  created_at?: string
+  /** Stripe subscription fields */
+  stripe_customer_id?: string | null
+  stripe_subscription_id?: string | null
+  subscription_status?: 'inactive' | 'trialing' | 'active' | 'canceled' | 'past_due' | null
+  cancel_at_period_end?: boolean
+  current_period_end?: string | null
 }
 
 type AuthContextType = {
@@ -112,6 +120,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await fetch('/api/auth/logout', { ...fetchOpts, method: 'POST' })
+    // Cleanup difensivo: i dati clinici sono ora su Supabase con RLS, ma
+    // se un utente ha usato una versione precedente potrebbero esserci
+    // residui legacy in localStorage. Li rimuoviamo comunque.
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.removeItem('medassist_visits')
+        window.localStorage.removeItem('medassist_generated_documents')
+        window.localStorage.removeItem('medassist_inbox_intro_dismissed')
+      } catch {
+        /* ignore */
+      }
+    }
     setUser(null)
     setDoctor(null)
   }

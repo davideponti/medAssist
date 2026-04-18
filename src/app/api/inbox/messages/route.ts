@@ -22,11 +22,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Sessione non valida' }, { status: 401 })
     }
 
+    // Paginazione: ?limit=50&offset=0 (max 200)
+    const url = new URL(request.url)
+    const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '200', 10) || 200, 1), 200)
+    const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10) || 0, 0)
+
     const { data, error } = await supabase
       .from('patient_messages')
       .select('*')
       .eq('doctor_id', user.id)
       .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
 
     if (error) {
       console.error('patient_messages list:', error)

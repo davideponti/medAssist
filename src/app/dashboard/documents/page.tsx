@@ -52,15 +52,28 @@ export default function DocumentsPage() {
     if (q) setArchiveSearch(q)
   }, [])
 
+  const [allDocs, setAllDocs] = useState<StoredGeneratedDocument[]>([])
+
+  useEffect(() => {
+    let mounted = true
+    void (async () => {
+      const list = await loadGeneratedDocuments()
+      if (mounted) setAllDocs(list)
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [docArchiveVersion])
+
   const archivedInCategory = useMemo(() => {
-    const list = loadGeneratedDocuments().filter((d) => d.type === archiveCat)
+    const list = allDocs.filter((d) => d.type === archiveCat)
     const q = archiveSearch.trim().toLowerCase()
     if (!q) return list
     return list.filter(
       (d) =>
         d.patientName.toLowerCase().includes(q) || d.body.toLowerCase().includes(q)
     )
-  }, [archiveCat, archiveSearch, docArchiveVersion])
+  }, [allDocs, archiveCat, archiveSearch])
 
   const documentTypes: { type: DocumentType; label: string; description: string }[] = [
     { type: 'referral', label: 'Referral', description: 'Lettera di consulenza specialistica' },
@@ -113,7 +126,7 @@ export default function DocumentsPage() {
       }
 
       setGeneratedDoc(text)
-      saveGeneratedDocument({
+      await saveGeneratedDocument({
         type: docType,
         patientName: patientName.trim(),
         body: text,

@@ -33,6 +33,29 @@ function getRedisClient() {
 // Fallback in-memory per sviluppo
 const memoryStore = new Map<string, { count: number; resetAt: number }>()
 
+// Limite dimensione per prevenire memory leak in caso di traffico elevato
+const MAX_MEMORY_STORE_SIZE = 10_000
+
+/** Pulisce le entry scadute dalla memoryStore. Chiamata su ogni rateLimit() se la store cresce. */
+function cleanupMemoryStore() {
+  const now = Date.now()
+  for (const [key, val] of memoryStore.entries()) {
+    if (val.resetAt <= now) {
+      memoryStore.delete(key)
+    }
+  }
+  // Se ancora troppo grande, svuota le entry più vecchie
+  if (memoryStore.size > MAX_MEMORY_STORE_SIZE) {
+    const toRemove = memoryStore.size - MAX_MEMORY_STORE_SIZE
+    let removed = 0
+    for (const key of memoryStore.keys()) {
+      memoryStore.delete(key)
+      removed++
+      if (removed >= toRemove) break
+    }
+  }
+}
+
 export async function rateLimit(
   key: string,
   limit: number,
@@ -66,6 +89,11 @@ export async function rateLimit(
   }
   
   // Fallback in-memory
+  // Cleanup periodico per evitare memory leak
+  if (memoryStore.size > MAX_MEMORY_STORE_SIZE / 2) {
+    cleanupMemoryStore()
+  }
+
   const current = memoryStore.get(key)
   if (!current || current.resetAt <= now) {
     memoryStore.set(key, { count: 1, resetAt })

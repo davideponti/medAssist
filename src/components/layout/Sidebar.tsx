@@ -43,7 +43,7 @@ export function Sidebar() {
             <Stethoscope className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="font-bold text-gray-900">MedAssist</h1>
+            <h1 className="font-bold text-emerald-600">medincly</h1>
             <p className="text-xs text-gray-500">AI Assistant</p>
           </div>
         </Link>

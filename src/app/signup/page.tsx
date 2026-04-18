@@ -76,7 +76,13 @@ export default function SignupPage() {
         address: address.trim() || undefined,
         phone: phone.trim() || undefined,
       })
-      router.push('/dashboard')
+      const q = new URLSearchParams(window.location.search)
+      const nextStep = q.get('next')
+      if (nextStep === 'payment') {
+        router.push('/prova-gratuita/pagamento')
+      } else {
+        router.push('/dashboard')
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Registrazione non riuscita')
     } finally {

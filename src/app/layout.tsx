@@ -7,7 +7,7 @@ import { Providers } from '@/components/Providers'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'MedAssist AI - Assistente Amministrativo per Studi Medici',
+  title: 'medincly - Assistente Amministrativo per Studi Medici',
   description: 'AI-powered administrative assistant for medical practices',
 }
 
@@ -23,7 +23,7 @@ export default function RootLayout({
           {children}
           <footer className="border-t border-gray-100 bg-white">
             <div className="max-w-6xl mx-auto px-6 py-6 text-sm text-gray-600 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-              <p>MedAssist AI - Informazioni legali e privacy</p>
+              <p><span className="text-emerald-600 font-semibold">medincly</span> - Informazioni legali e privacy</p>
               <div className="flex items-center gap-4">
                 <Link href="/termini-e-condizioni" className="hover:text-gray-900 hover:underline">
                   Termini

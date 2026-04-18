@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
     const audio = formData.get('audio') as File
-    const mimeType = formData.get('mimeType') as string | null
+    const rawMimeType = formData.get('mimeType') as string | null
 
     if (!audio) {
       return NextResponse.json(
@@ -37,11 +37,35 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Limite dimensione audio: 25 MB (limite Whisper = 25 MB)
+    const MAX_AUDIO_SIZE = 25 * 1024 * 1024
+    if (audio.size > MAX_AUDIO_SIZE) {
+      return NextResponse.json(
+        { error: 'File audio troppo grande (max 25MB).' },
+        { status: 413 }
+      )
+    }
+    if (audio.size < 100) {
+      return NextResponse.json(
+        { error: 'File audio vuoto o troppo piccolo.' },
+        { status: 400 }
+      )
+    }
+
+    // Whitelist MIME type audio
+    const ALLOWED_MIMES = new Set([
+      'audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/mp3',
+      'audio/wav', 'audio/wave', 'audio/x-wav',
+      'audio/ogg', 'audio/flac', 'audio/m4a', 'audio/x-m4a',
+    ])
+    const clientType = (rawMimeType || audio.type || '').toLowerCase().trim()
+    const safeMimeType = ALLOWED_MIMES.has(clientType) ? clientType : 'audio/webm'
+
     // Convert File to Buffer
     const audioBuffer = Buffer.from(await audio.arrayBuffer())
 
     // Transcribe audio
-    const transcription = await transcribeAudio(audioBuffer, mimeType || audio.type || 'audio/webm')
+    const transcription = await transcribeAudio(audioBuffer, safeMimeType)
 
     return NextResponse.json({
       transcription,

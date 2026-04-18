@@ -10,8 +10,8 @@ export default function HomePage() {
             <Stethoscope className="w-4 h-4" />
             AI Administrative Assistant
           </div>
-          <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            MedAssist AI
+          <h1 className="text-5xl font-bold text-emerald-600 mb-4">
+            medincly
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Risparmia ore ogni giorno. Trascrizione automatica delle visite, 

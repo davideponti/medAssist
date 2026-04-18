@@ -96,17 +96,33 @@ export function Header() {
     if (query.length < 1) return []
     return filterPatientsByQuery(patientsFromApi, query).slice(0, 6)
   }, [query, patientsFromApi])
+
+  // I documenti sono ora su server: carico tutti e filtro client-side.
+  const [allDocuments, setAllDocuments] = useState<
+    { id: string; patientName: string; body: string; type: string; createdAt: string }[]
+  >([])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const list = await loadGeneratedDocuments()
+      if (!cancelled) setAllDocuments(list)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [docTick])
+
   const documents = useMemo(() => {
     if (query.length < 1) return []
-    void docTick
     const qlower = query.toLowerCase()
-    return loadGeneratedDocuments()
+    return allDocuments
       .filter(
         (d) =>
           d.patientName.toLowerCase().includes(qlower) || d.body.toLowerCase().includes(qlower)
       )
       .slice(0, 6)
-  }, [query, docTick])
+  }, [query, allDocuments])
 
   const showDropdown = open && query.length >= 1
 

@@ -8,7 +8,7 @@ export default function PrivacyPolicyPage() {
           <Link href="/" className="text-sm text-primary-700 hover:text-primary-900">
             Torna alla home
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900 mt-3">Privacy Policy - MedAssist AI</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mt-3">Privacy Policy - medincly</h1>
           <p className="text-sm text-gray-500 mt-2">Ultimo aggiornamento: 07/04/2026</p>
         </div>
 
@@ -27,8 +27,8 @@ export default function PrivacyPolicyPage() {
 
           <h2>1-bis. Ruoli privacy</h2>
           <p>
-            Per i dati dei propri pazienti, il medico/struttura cliente agisce come Titolare del trattamento. MedAssist
-            AI agisce come Responsabile del trattamento ai sensi dell&apos;art. 28 GDPR, secondo DPA dedicato.
+            Per i dati dei propri pazienti, il medico/struttura cliente agisce come Titolare del trattamento. medincly
+            agisce come Responsabile del trattamento ai sensi dell&apos;art. 28 GDPR, secondo DPA dedicato.
           </p>
 
           <h2>2. Finalita e base giuridica</h2>

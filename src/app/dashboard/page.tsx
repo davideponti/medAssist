@@ -36,13 +36,17 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    const refreshVisits = () => setVisits(loadVisits())
-    refreshVisits()
-    window.addEventListener('medassist-visits-updated', refreshVisits)
-    window.addEventListener('storage', refreshVisits)
+    let mounted = true
+    const refreshVisits = async () => {
+      const list = await loadVisits()
+      if (mounted) setVisits(list)
+    }
+    void refreshVisits()
+    const onUpd = () => { void refreshVisits() }
+    window.addEventListener('medassist-visits-updated', onUpd)
     return () => {
-      window.removeEventListener('medassist-visits-updated', refreshVisits)
-      window.removeEventListener('storage', refreshVisits)
+      mounted = false
+      window.removeEventListener('medassist-visits-updated', onUpd)
     }
   }, [])
 

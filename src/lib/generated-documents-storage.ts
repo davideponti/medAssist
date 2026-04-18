@@ -1,3 +1,10 @@
+/**
+ * Client per API /api/generated-documents.
+ *
+ * I documenti sono persistiti su Supabase con RLS (tabella public.generated_documents),
+ * NON in localStorage. Conforme GDPR art. 32 per dati sanitari.
+ */
+
 export type StoredDocType = 'referral' | 'letter' | 'certificate'
 
 export type StoredGeneratedDocument = {
@@ -8,55 +15,61 @@ export type StoredGeneratedDocument = {
   createdAt: string
 }
 
-const KEY = 'medassist_generated_documents'
+const fetchOpts: RequestInit = { credentials: 'include' }
 
-function safeParse(): StoredGeneratedDocument[] {
-  if (typeof window === 'undefined') return []
-  const json = window.localStorage.getItem(KEY)
-  if (!json) return []
+export async function loadGeneratedDocuments(): Promise<StoredGeneratedDocument[]> {
   try {
-    const data = JSON.parse(json) as unknown
-    if (!Array.isArray(data)) return []
-    return data.filter((v): v is StoredGeneratedDocument => {
-      if (typeof v !== 'object' || v === null) return false
-      const t = (v as StoredGeneratedDocument).type
-      return (
-        'id' in v &&
-        'patientName' in v &&
-        'body' in v &&
-        (t === 'referral' || t === 'letter' || t === 'certificate')
-      )
-    })
+    const res = await fetch('/api/generated-documents', { ...fetchOpts, cache: 'no-store' })
+    if (!res.ok) return []
+    const data = (await res.json().catch(() => ({}))) as {
+      documents?: StoredGeneratedDocument[]
+    }
+    return Array.isArray(data.documents) ? data.documents : []
   } catch {
     return []
   }
 }
 
-export function loadGeneratedDocuments(): StoredGeneratedDocument[] {
-  return safeParse().sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  )
-}
-
-export function saveGeneratedDocument(doc: Omit<StoredGeneratedDocument, 'id' | 'createdAt'>): StoredGeneratedDocument {
-  const row: StoredGeneratedDocument = {
-    id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
-    ...doc,
+export async function saveGeneratedDocument(
+  doc: Omit<StoredGeneratedDocument, 'id' | 'createdAt'>
+): Promise<StoredGeneratedDocument | null> {
+  try {
+    const res = await fetch('/api/generated-documents', {
+      ...fetchOpts,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(doc),
+    })
+    if (!res.ok) return null
+    const data = (await res.json().catch(() => ({}))) as { document?: StoredGeneratedDocument }
+    return data.document ?? null
+  } catch {
+    return null
   }
-  const list = loadGeneratedDocuments()
-  window.localStorage.setItem(KEY, JSON.stringify([row, ...list]))
-  return row
 }
 
-export function docsByType(type: StoredDocType): StoredGeneratedDocument[] {
-  return loadGeneratedDocuments().filter((d) => d.type === type)
+export async function docsByType(type: StoredDocType): Promise<StoredGeneratedDocument[]> {
+  try {
+    const res = await fetch(`/api/generated-documents?type=${encodeURIComponent(type)}`, {
+      ...fetchOpts,
+      cache: 'no-store',
+    })
+    if (!res.ok) return []
+    const data = (await res.json().catch(() => ({}))) as {
+      documents?: StoredGeneratedDocument[]
+    }
+    return Array.isArray(data.documents) ? data.documents : []
+  } catch {
+    return []
+  }
 }
 
-export function searchDocuments(query: string): StoredGeneratedDocument[] {
+export async function searchDocuments(query: string): Promise<StoredGeneratedDocument[]> {
+  // Filtro client-side per semplicita' (la lista per medico e' limitata).
   const q = query.trim().toLowerCase()
-  if (!q) return loadGeneratedDocuments()
-  return loadGeneratedDocuments().filter(
+  const all = await loadGeneratedDocuments()
+  if (!q) return all
+  return all.filter(
     (d) =>
       d.patientName.toLowerCase().includes(q) ||
       d.body.toLowerCase().includes(q) ||

@@ -8,7 +8,7 @@ export default function ProvaGratuitaPage() {
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 bg-medical-100 text-medical-700 px-4 py-2 rounded-full text-sm font-medium mb-5">
             <Stethoscope className="w-4 h-4" />
-            MedAssist AI
+            medincly
           </div>
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3">
             Inizia la tua prova gratuita di 7 giorni
@@ -98,13 +98,13 @@ export default function ProvaGratuitaPage() {
               </li>
             </ul>
             <Link
-              href="/prova-gratuita/pagamento"
+              href="/signup?piano=professionale&trial=7&next=payment"
               className="block w-full text-center bg-primary-600 text-white py-3.5 rounded-xl font-semibold hover:bg-primary-700 transition-colors"
             >
               Inizia la tua prova gratuita di 7 giorni
             </Link>
             <p className="text-xs text-gray-500 text-center mt-4">
-              Le condizioni economiche e la data di fine prova sono riepilogate nella pagina successiva, prima dell&apos;inserimento dei dati della carta.
+              Prima creerai il tuo account, poi completerai il pagamento sicuro. Le condizioni economiche e la data di fine prova sono riepilogate prima dell&apos;inserimento dei dati della carta.
             </p>
           </section>
         </div>

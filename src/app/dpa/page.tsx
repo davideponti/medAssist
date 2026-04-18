@@ -15,7 +15,7 @@ export default function DpaPage() {
         <div className="prose prose-sm max-w-none text-gray-800">
           <p>
             Questo modello disciplina la nomina a Responsabile del trattamento ai sensi dell&apos;art. 28 GDPR tra Cliente
-            (Titolare) e MedAssist AI (Responsabile).
+            (Titolare) e medincly (Responsabile).
           </p>
 
           <h2>Parti</h2>
@@ -26,13 +26,13 @@ export default function DpaPage() {
 
           <h2>Chiarimento ruoli GDPR</h2>
           <p>
-            Per i dati dei pazienti trattati nello studio medico, il Cliente e Titolare del trattamento; MedAssist AI e
+            Per i dati dei pazienti trattati nello studio medico, il Cliente e Titolare del trattamento; medincly e
             Responsabile del trattamento nominato ai sensi dell&apos;art. 28 GDPR.
           </p>
 
           <h2>Oggetto, natura e finalita</h2>
           <p>
-            Trattamento di dati personali necessario all&apos;erogazione del servizio software MedAssist AI, incluse
+            Trattamento di dati personali necessario all&apos;erogazione del servizio software medincly, incluse
             funzionalita operative e supporto tecnico.
           </p>
 

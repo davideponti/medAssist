@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionTokenFromRequest } from '@/lib/auth-session'
 import { createUserSupabase } from '@/lib/supabase-user'
+import { getClientIp, isAllowedOrigin, rateLimit } from '@/lib/api-security'
 import type { Patient } from '@/lib/patient-types'
 
 export const dynamic = 'force-dynamic'
+
+const MAX_NAME = 200
+const MAX_PHONE = 50
+const MAX_EMAIL = 254
+const MAX_DIAGNOSIS = 5_000
+const MAX_MEDICATIONS = 5_000
+const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+const PHONE_RE = /^[+]?[\d\s().-]{6,50}$/
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 type PatientRow = {
   id: string
@@ -49,11 +59,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Sessione non valida' }, { status: 401 })
     }
 
+    // Paginazione: ?limit=50&offset=0 (max 200)
+    const url = new URL(request.url)
+    const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '200', 10) || 200, 1), 200)
+    const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10) || 0, 0)
+
     const { data, error } = await supabase
       .from('patients')
       .select('*')
       .eq('doctor_id', user.id)
       .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
 
     if (error) {
       console.error('patients list:', error)
@@ -76,6 +92,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isAllowedOrigin(request)) {
+      return NextResponse.json({ error: 'Origine richiesta non consentita.' }, { status: 403 })
+    }
     const token = getSessionTokenFromRequest(request)
     if (!token) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
@@ -91,26 +110,57 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Sessione non valida' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const name = String(body.name ?? '').trim()
+    const ip = getClientIp(request)
+    const rl = await rateLimit(`patients-post:${user.id}:${ip}`, 30, 60_000)
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Troppe richieste. Riprova tra poco.' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
+      )
+    }
+
+    const body = await request.json().catch(() => null)
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'Richiesta non valida.' }, { status: 400 })
+    }
+    const b = body as Record<string, unknown>
+
+    const name = String(b.name ?? '').trim().slice(0, MAX_NAME)
     if (!name) {
       return NextResponse.json({ error: 'Il nome è richiesto' }, { status: 400 })
     }
 
-    const ageRaw = body.age
+    const ageRaw = b.age
     let age: number | null = null
     if (ageRaw !== undefined && ageRaw !== null && ageRaw !== '') {
       const n = typeof ageRaw === 'number' ? ageRaw : parseInt(String(ageRaw), 10)
       age = Number.isFinite(n) ? Math.max(0, Math.min(130, Math.floor(n))) : null
     }
 
-    const phone = body.phone != null ? String(body.phone).trim() || null : null
-    const email = body.email != null ? String(body.email).trim().toLowerCase() || null : null
-    const lastVisit = body.lastVisit != null && String(body.lastVisit).trim() !== ''
-      ? String(body.lastVisit).slice(0, 10)
+    const phoneRaw = b.phone != null ? String(b.phone).trim().slice(0, MAX_PHONE) : ''
+    if (phoneRaw && !PHONE_RE.test(phoneRaw)) {
+      return NextResponse.json({ error: 'Numero di telefono non valido.' }, { status: 400 })
+    }
+    const phone = phoneRaw || null
+
+    const emailRaw = b.email != null ? String(b.email).trim().toLowerCase().slice(0, MAX_EMAIL) : ''
+    if (emailRaw && !EMAIL_RE.test(emailRaw)) {
+      return NextResponse.json({ error: 'Indirizzo email non valido.' }, { status: 400 })
+    }
+    const email = emailRaw || null
+
+    const lastVisitRaw = b.lastVisit != null ? String(b.lastVisit).slice(0, 10) : ''
+    if (lastVisitRaw && !DATE_RE.test(lastVisitRaw)) {
+      return NextResponse.json({ error: 'Data ultima visita non valida.' }, { status: 400 })
+    }
+    const lastVisit = lastVisitRaw || null
+
+    const diagnosis = b.diagnosis != null
+      ? String(b.diagnosis).trim().slice(0, MAX_DIAGNOSIS) || null
       : null
-    const diagnosis = body.diagnosis != null ? String(body.diagnosis).trim() || null : null
-    const medications = body.medications != null ? String(body.medications).trim() || null : null
+    const medications = b.medications != null
+      ? String(b.medications).trim().slice(0, MAX_MEDICATIONS) || null
+      : null
 
     const { data, error } = await supabase
       .from('patients')

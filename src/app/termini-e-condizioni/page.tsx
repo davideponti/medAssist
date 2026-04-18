@@ -8,20 +8,20 @@ export default function TerminiECondizioniPage() {
           <Link href="/" className="text-sm text-primary-700 hover:text-primary-900">
             Torna alla home
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900 mt-3">Termini e Condizioni - MedAssist AI</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mt-3">Termini e Condizioni - medincly</h1>
           <p className="text-sm text-gray-500 mt-2">Ultimo aggiornamento: 07/04/2026</p>
         </div>
 
         <div className="prose prose-sm max-w-none text-gray-800">
           <p>
-            I presenti Termini e Condizioni disciplinano l&apos;uso del servizio MedAssist AI, fornito da Davide
+            I presenti Termini e Condizioni disciplinano l&apos;uso del servizio medincly, fornito da Davide
             Ponticorvo, Codice Fiscale PNTDVD06P21G568Y, con recapito in Via Montariello 8, Italia, contatto
             iamedassist@gmail.com.
           </p>
 
           <h2>1. Oggetto del servizio</h2>
           <p>
-            MedAssist AI fornisce funzionalita software per supportare l&apos;attivita di studio medico (es. gestione
+            medincly fornisce funzionalita software per supportare l&apos;attivita di studio medico (es. gestione
             documentale, supporto a trascrizione e bozze). Il servizio e uno strumento di supporto e non sostituisce il
             giudizio professionale sanitario.
           </p>
@@ -43,7 +43,7 @@ export default function TerminiECondizioniPage() {
 
           <h2>4. Pagamenti e fatturazione</h2>
           <p>
-            I pagamenti sono elaborati da Stripe. MedAssist AI non memorizza i numeri completi delle carte di pagamento.
+            I pagamenti sono elaborati da Stripe. medincly non memorizza i numeri completi delle carte di pagamento.
             L&apos;utente e responsabile della correttezza dei dati di fatturazione e del metodo di pagamento. Se dovuta,
             la documentazione fiscale (fattura o ricevuta) viene emessa in base al regime fiscale applicabile. Il prezzo
             di 49 EUR/mese e da intendersi IVA esclusa, salvo diversa indicazione esplicita.
@@ -57,7 +57,7 @@ export default function TerminiECondizioniPage() {
 
           <h2>6. Limiti d&apos;uso in ambito medico</h2>
           <p>
-            MedAssist AI non effettua diagnosi medica e non puo essere usato per decisioni cliniche autonome. L&apos;utente
+            medincly non effettua diagnosi medica e non puo essere usato per decisioni cliniche autonome. L&apos;utente
             resta l&apos;unico responsabile delle decisioni cliniche e delle comunicazioni verso i pazienti. Qualsiasi
             output generato deve essere verificato e approvato da un professionista sanitario prima dell&apos;uso.
           </p>
@@ -84,7 +84,7 @@ export default function TerminiECondizioniPage() {
 
           <h2>10. Utenti ammessi e ambito territoriale</h2>
           <p>
-            Il servizio e riservato a maggiorenni e professionisti/strutture sanitarie. MedAssist AI e progettato per uso
+            Il servizio e riservato a maggiorenni e professionisti/strutture sanitarie. medincly e progettato per uso
             in Italia e nell&apos;Unione Europea.
           </p>
 

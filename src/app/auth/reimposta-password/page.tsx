@@ -24,9 +24,12 @@ export default function ReimpostaPasswordPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    // SICUREZZA: abilita il form solo se arriva da un link di recovery valido.
+    // NON fidarsi di una sessione pre-esistente: potrebbe essere una sessione
+    // rubata e usata qui per cambiare password senza conoscere quella attuale.
     if (typeof window !== 'undefined') {
       const h = window.location.hash
-      if (h.includes('type=recovery') || h.includes('access_token')) {
+      if (h.includes('type=recovery')) {
         setReady(true)
       }
     }
@@ -37,10 +40,6 @@ export default function ReimpostaPasswordPage() {
       if (event === 'PASSWORD_RECOVERY') {
         setReady(true)
       }
-    })
-
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setReady(true)
     })
 
     return () => subscription.unsubscribe()

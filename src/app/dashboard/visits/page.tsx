@@ -35,21 +35,19 @@ export default function VisitsPage() {
   const [visits, setVisits] = useState<StoredVisit[]>([])
   const [detail, setDetail] = useState<StoredVisit | null>(null)
 
+  const refresh = async () => {
+    const list = await loadVisits({ includeArchived: true })
+    setVisits(list)
+  }
+
   useEffect(() => {
-    setVisits(loadVisits({ includeArchived: true }))
+    void refresh()
   }, [])
 
-  const refresh = () => setVisits(loadVisits({ includeArchived: true }))
-
   useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === 'medassist_visits') refresh()
-    }
-    const onLocal = () => refresh()
-    window.addEventListener('storage', onStorage)
+    const onLocal = () => { void refresh() }
     window.addEventListener('medassist-visits-updated', onLocal)
     return () => {
-      window.removeEventListener('storage', onStorage)
       window.removeEventListener('medassist-visits-updated', onLocal)
     }
   }, [])
@@ -58,22 +56,22 @@ export default function VisitsPage() {
   const archivedVisits = visits.filter((v) => v.archived)
   const shownVisits = tab === 'attive' ? activeVisits : archivedVisits
 
-  const onArchiveToggle = (visit: StoredVisit) => {
+  const onArchiveToggle = async (visit: StoredVisit) => {
     if (visit.archived) {
-      unarchiveVisit(visit.id)
+      await unarchiveVisit(visit.id)
     } else {
-      archiveVisit(visit.id)
+      await archiveVisit(visit.id)
     }
-    refresh()
+    await refresh()
     window.dispatchEvent(new Event('medassist-visits-updated'))
   }
 
-  const onDelete = (visit: StoredVisit) => {
+  const onDelete = async (visit: StoredVisit) => {
     const ok = window.confirm(`Confermi eliminazione della visita "${visitTitle(visit)}"?`)
     if (!ok) return
-    deleteVisit(visit.id)
+    await deleteVisit(visit.id)
     if (detail?.id === visit.id) setDetail(null)
-    refresh()
+    await refresh()
     window.dispatchEvent(new Event('medassist-visits-updated'))
   }
 

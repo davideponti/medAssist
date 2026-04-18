@@ -1,31 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionTokenFromRequest } from '@/lib/auth-session'
 import { createUserSupabase } from '@/lib/supabase-user'
+import { getClientIp, isAllowedOrigin, rateLimit } from '@/lib/api-security'
 
 export const dynamic = 'force-dynamic'
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const MAX_REPLY = 10_000
+const MAX_ACTION = 500
 
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!isAllowedOrigin(request)) {
+      return NextResponse.json({ error: 'Origine richiesta non consentita.' }, { status: 403 })
+    }
     const token = getSessionTokenFromRequest(request)
     if (!token) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
 
     const { id } = await context.params
-    if (!id) {
-      return NextResponse.json({ error: 'Mancante id' }, { status: 400 })
+    if (!id || !UUID_RE.test(id)) {
+      return NextResponse.json({ error: 'Id non valido' }, { status: 400 })
     }
-
-    const body = await request.json()
-    const doctor_reply = body.doctor_reply != null ? String(body.doctor_reply) : undefined
-    const ai_suggested_reply =
-      body.ai_suggested_reply != null ? String(body.ai_suggested_reply) : undefined
-    const suggested_action =
-      body.suggested_action != null ? String(body.suggested_action) : undefined
-    const markRead = Boolean(body.markRead)
 
     const supabase = createUserSupabase(token)
     const {
@@ -36,6 +37,28 @@ export async function PATCH(
     if (userError || !user) {
       return NextResponse.json({ error: 'Sessione non valida' }, { status: 401 })
     }
+
+    const ip = getClientIp(request)
+    const rl = await rateLimit(`inbox-patch:${user.id}:${ip}`, 60, 60_000)
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Troppe richieste. Riprova tra poco.' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
+      )
+    }
+
+    const body = await request.json().catch(() => null)
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'Richiesta non valida.' }, { status: 400 })
+    }
+    const b = body as Record<string, unknown>
+    const doctor_reply =
+      b.doctor_reply != null ? String(b.doctor_reply).slice(0, MAX_REPLY) : undefined
+    const ai_suggested_reply =
+      b.ai_suggested_reply != null ? String(b.ai_suggested_reply).slice(0, MAX_REPLY) : undefined
+    const suggested_action =
+      b.suggested_action != null ? String(b.suggested_action).slice(0, MAX_ACTION) : undefined
+    const markRead = Boolean(b.markRead)
 
     const updates: Record<string, unknown> = {}
     if (doctor_reply !== undefined) updates.doctor_reply = doctor_reply || null
